@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ page_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    <main class="page">
+      <!-- 主面板：包含上传表单与结果展示 -->
+      <section class="panel">
+        <p class="eyebrow">Finance Reconciliation</p>
+        <h1>{{ page_title }}</h1>
+        <p class="intro">
+          选择对账月份，上传聚天下文件和外部平台文件，后续将在这里完成整套对账流程。
+        </p>
+
+        {% if error_message %}
+        <div class="notice error">{{ error_message }}</div>
+        {% endif %}
+
+        <!-- 对账表单：提交到 /reconcile，必须使用 multipart 才能上传文件 -->
+        <form class="form" action="/reconcile" method="post" enctype="multipart/form-data">
+          <label class="field">
+            <span>对账月份</span>
+            <input type="month" name="reconciliation_month" value="{{ selected_month }}" />
+          </label>
+
+          <label class="field">
+            <span>平台选择</span>
+            <select name="platform">
+              <option value="ctrip" {% if selected_platform == "ctrip" %}selected{% endif %}>
+                携程
+              </option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>聚天下文件</span>
+            <input type="file" name="jutianxia_file" />
+          </label>
+
+          <label class="field">
+            <span>外部平台文件</span>
+            <input type="file" name="platform_file" />
+          </label>
+
+          <button type="submit">开始对账</button>
+        </form>
+
+        {% if summary %}
+        <!-- 只有拿到结果后才显示摘要、导出按钮和结果表 -->
+        <section class="results">
+          <header class="results-overview">
+            <div class="section-copy">
+              <p class="section-kicker">Results Overview</p>
+              <h2>结果总览</h2>
+              <p class="section-intro">
+                先确认本月匹配和差异情况，再继续核对主结果表。
+              </p>
+            </div>
+            <div class="meta-pills">
+              <span class="meta-pill">对账月份：{{ summary.reconciliation_month }}</span>
+              <span class="meta-pill">平台：{{ summary.platform_label }}</span>
+            </div>
+          </header>
+
+          <div class="summary-grid">
+            <article class="summary-card summary-card-primary">
+              <span>成功匹配订单数</span>
+              <strong>{{ summary.matched_order_count }}</strong>
+              <small>本月已成功进入主结果表的订单数</small>
+            </article>
+            <article class="summary-card summary-card-alert">
+              <span>聚天下有、第三方当月无</span>
+              <strong>{{ summary.internal_only_count }}</strong>
+              <small>优先核对是否存在平台漏单或月份差异</small>
+            </article>
+            <article class="summary-card summary-card-alert">
+              <span>第三方有、聚天下当月无</span>
+              <strong>{{ summary.external_only_count }}</strong>
+              <small>优先核对是否存在内部漏单或导入范围问题</small>
+            </article>
+            <article class="summary-card summary-card-secondary">
+              <span>汇总产品数</span>
+              <strong>{{ summary.product_count }}</strong>
+              <small>主结果表中的产品分组数量</small>
+            </article>
+            <article class="summary-card summary-card-secondary">
+              <span>被过滤的非当月平台记录数</span>
+              <strong>{{ summary.filtered_out_of_month_row_count }}</strong>
+              <small>按对账月份过滤后未参与计算</small>
+            </article>
+          </div>
+
+          <!-- 导出按钮提交隐藏 payload 到 /export，后端据此生成 Excel -->
+          <form action="/export" method="post" class="export-form">
+            <input type="hidden" name="payload" value='{{ export_payload|e }}' />
+            <button type="submit">导出 Excel</button>
+          </form>
+
+          <section class="result-section">
+            <div class="section-copy">
+              <p class="section-kicker">Main Report</p>
+              <h2>主结果表</h2>
+              <p class="section-intro">
+                按产品名称汇总后的正式对账结果，适合直接进行财务核对。
+              </p>
+            </div>
+
+            <!-- 结果明细表：按产品展示汇总指标 -->
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>产品名称</th>
+                    <th class="text-right">核销人次</th>
+                    <th class="text-right">销售额</th>
+                    <th class="text-right">结算实付</th>
+                    <th class="text-right">采购金额</th>
+                    <th class="text-right">利润</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in result_rows %}
+                  <tr>
+                    <td>{{ row.product_name }}</td>
+                    <td class="text-right">{{ row.actual_people_total }}</td>
+                    <td class="text-right">{{ "%.2f"|format(row.sales_amount_total) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(row.settlement_paid_total) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(row.purchase_amount_total) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(row.profit_total) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="result-section">
+            <div class="section-copy">
+              <p class="section-kicker">Difference Check</p>
+              <h2>订单差异检查</h2>
+              <p class="section-intro">
+                差异明细默认折叠，先看数量；需要核查具体订单号时再展开。
+              </p>
+            </div>
+
+            <section class="difference-sections">
+              <details class="difference-panel {% if summary.internal_only_count > 0 %}difference-panel-attention{% else %}difference-panel-clear{% endif %}">
+                <summary>
+                  <span class="difference-title">聚天下有、第三方当月无</span>
+                  <span class="difference-badge">{{ summary.internal_only_count }}</span>
+                </summary>
+                <p class="difference-tip">只展示订单号，按唯一订单号去重。</p>
+                <div class="table-wrap difference-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>序号</th>
+                        <th>订单号</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% if internal_only_order_nos %}
+                        {% for order_no in internal_only_order_nos %}
+                        <tr>
+                          <td>{{ loop.index }}</td>
+                          <td>{{ order_no }}</td>
+                        </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr>
+                          <td colspan="2">无</td>
+                        </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+
+              <details class="difference-panel {% if summary.external_only_count > 0 %}difference-panel-attention{% else %}difference-panel-clear{% endif %}">
+                <summary>
+                  <span class="difference-title">第三方有、聚天下当月无</span>
+                  <span class="difference-badge">{{ summary.external_only_count }}</span>
+                </summary>
+                <p class="difference-tip">只展示第三方单号，按唯一订单号去重。</p>
+                <div class="table-wrap difference-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>序号</th>
+                        <th>第三方单号</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% if external_only_order_nos %}
+                        {% for order_no in external_only_order_nos %}
+                        <tr>
+                          <td>{{ loop.index }}</td>
+                          <td>{{ order_no }}</td>
+                        </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr>
+                          <td colspan="2">无</td>
+                        </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </section>
+          </section>
+        </section>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
