@@ -2,7 +2,7 @@ from app.domain.reconcile import reconcile_orders
 from app.models.reconciliation import ExternalOrderAggregate, InternalOrder
 
 
-def test_reconcile_orders_groups_by_product_and_ignores_unmatched_orders() -> None:
+def test_reconcile_orders_groups_metrics_by_product_and_ignores_unmatched_orders() -> None:
     internal_orders = [
         InternalOrder(
             order_no="A-001",
@@ -26,19 +26,32 @@ def test_reconcile_orders_groups_by_product_and_ignores_unmatched_orders() -> No
     external_orders = [
         ExternalOrderAggregate(
             external_order_no="A-001",
-            settlement_amount=100.0,
+            metrics={
+                "sales_amount": 100.0,
+                "settlement_paid": 100.0,
+                "technical_service_fee": 10.0,
+                "merchant_coupon": 2.0,
+            },
             platform_name="ctrip",
             source_row_count=2,
         ),
         ExternalOrderAggregate(
             external_order_no="A-002",
-            settlement_amount=50.0,
+            metrics={
+                "sales_amount": 50.0,
+                "settlement_paid": 50.0,
+                "technical_service_fee": 2.0,
+                "merchant_coupon": 1.0,
+            },
             platform_name="ctrip",
             source_row_count=1,
         ),
         ExternalOrderAggregate(
             external_order_no="X-999",
-            settlement_amount=999.0,
+            metrics={
+                "sales_amount": 999.0,
+                "settlement_paid": 999.0,
+            },
             platform_name="ctrip",
             source_row_count=1,
         ),
@@ -56,8 +69,10 @@ def test_reconcile_orders_groups_by_product_and_ignores_unmatched_orders() -> No
 
     row = result.rows[0]
     assert row.product_name == "产品A"
-    assert row.actual_people_total == 3
-    assert row.sales_amount_total == 150.0
-    assert row.settlement_paid_total == 150.0
-    assert row.purchase_amount_total == 120.0
-    assert row.profit_total == 30.0
+    assert row.metrics["actual_people"] == 3
+    assert row.metrics["sales_amount"] == 150.0
+    assert row.metrics["settlement_paid"] == 150.0
+    assert row.metrics["technical_service_fee"] == 12.0
+    assert row.metrics["merchant_coupon"] == 3.0
+    assert row.metrics["purchase_amount"] == 120.0
+    assert row.metrics["profit"] == 30.0

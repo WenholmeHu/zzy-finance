@@ -20,6 +20,7 @@ app = FastAPI(title="Finance Reconciliation")
 
 # 将 /static 路径映射到 app/web/static 目录。
 # 模板中的 CSS、图片等资源都会通过这个挂载点访问。
+# 实习生提示：如果页面样式丢失，优先检查这个目录映射是否仍然正确。
 app.mount(
     "/static",
     StaticFiles(directory=Path(__file__).parent / "web" / "static"),
@@ -27,4 +28,5 @@ app.mount(
 )
 
 # 注册网页相关路由：包含首页、执行对账、导出 Excel。
+# 路由定义集中在 web/routes.py，入口文件保持最小化，便于维护。
 app.include_router(web_router)

@@ -225,6 +225,12 @@ button:hover {
   justify-content: flex-start;
 }
 
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 /* 表格外层：支持横向滚动，防止小屏溢出 */
 .table-wrap {
   overflow-x: auto;

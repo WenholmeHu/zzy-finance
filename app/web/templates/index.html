@@ -21,6 +21,7 @@
         {% endif %}
 
         <!-- 对账表单：提交到 /reconcile，必须使用 multipart 才能上传文件 -->
+        <!-- 字段名必须和 routes.py 的参数名保持一致，否则 FastAPI 无法接收 -->
         <form class="form" action="/reconcile" method="post" enctype="multipart/form-data">
           <label class="field">
             <span>对账月份</span>
@@ -30,9 +31,14 @@
           <label class="field">
             <span>平台选择</span>
             <select name="platform">
-              <option value="ctrip" {% if selected_platform == "ctrip" %}selected{% endif %}>
-                携程
+              {% for option in platform_options %}
+              <option
+                value="{{ option.platform_name }}"
+                {% if selected_platform == option.platform_name %}selected{% endif %}
+              >
+                {{ option.platform_label }}
               </option>
+              {% endfor %}
             </select>
           </label>
 
@@ -51,6 +57,7 @@
 
         {% if summary %}
         <!-- 只有拿到结果后才显示摘要、导出按钮和结果表 -->
+        <!-- 页面模块顺序：总览 -> 导出 -> 主结果 -> 差异检查 -->
         <section class="results">
           <header class="results-overview">
             <div class="section-copy">
@@ -95,10 +102,22 @@
           </div>
 
           <!-- 导出按钮提交隐藏 payload 到 /export，后端据此生成 Excel -->
-          <form action="/export" method="post" class="export-form">
-            <input type="hidden" name="payload" value='{{ export_payload|e }}' />
-            <button type="submit">导出 Excel</button>
-          </form>
+          <!-- 这里不再次上传文件，导出内容来自当前页面结果快照 -->
+          <div class="export-actions">
+            <form action="/export" method="post" class="export-form">
+              <input type="hidden" name="payload" value='{{ export_payload|e }}' />
+              <button type="submit">导出 Excel</button>
+            </form>
+
+            <form action="/export-differences" method="post" class="export-form">
+              <input
+                type="hidden"
+                name="payload"
+                value='{{ difference_export_payload|e }}'
+              />
+              <button type="submit">导出差异表</button>
+            </form>
+          </div>
 
           <section class="result-section">
             <div class="section-copy">
@@ -114,23 +133,27 @@
               <table>
                 <thead>
                   <tr>
-                    <th>产品名称</th>
-                    <th class="text-right">核销人次</th>
-                    <th class="text-right">销售额</th>
-                    <th class="text-right">结算实付</th>
-                    <th class="text-right">采购金额</th>
-                    <th class="text-right">利润</th>
+                    {% for column in report_columns %}
+                    <th {% if column.is_numeric %}class="text-right"{% endif %}>
+                      {{ column.label }}
+                    </th>
+                    {% endfor %}
                   </tr>
                 </thead>
                 <tbody>
                   {% for row in result_rows %}
                   <tr>
-                    <td>{{ row.product_name }}</td>
-                    <td class="text-right">{{ row.actual_people_total }}</td>
-                    <td class="text-right">{{ "%.2f"|format(row.sales_amount_total) }}</td>
-                    <td class="text-right">{{ "%.2f"|format(row.settlement_paid_total) }}</td>
-                    <td class="text-right">{{ "%.2f"|format(row.purchase_amount_total) }}</td>
-                    <td class="text-right">{{ "%.2f"|format(row.profit_total) }}</td>
+                    {% for column in report_columns %}
+                    <td {% if column.is_numeric %}class="text-right"{% endif %}>
+                      {% if column.key == "product_name" %}
+                        {{ row.product_name }}
+                      {% elif column.key == "actual_people" %}
+                        {{ row.metrics.get(column.key, 0) }}
+                      {% else %}
+                        {{ "%.2f"|format(row.metrics.get(column.key, 0)) }}
+                      {% endif %}
+                    </td>
+                    {% endfor %}
                   </tr>
                   {% endfor %}
                 </tbody>

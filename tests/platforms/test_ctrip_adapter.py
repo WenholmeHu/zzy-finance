@@ -2,6 +2,7 @@ import pandas as pd
 
 from app.platforms.ctrip_adapter import CtripAdapter
 from app.platforms.registry import get_platform_adapter
+from app.platforms.report_definitions import get_platform_report_definition
 
 
 def test_ctrip_adapter_filters_by_month_and_aggregates_orders() -> None:
@@ -33,7 +34,8 @@ def test_ctrip_adapter_filters_by_month_and_aggregates_orders() -> None:
 
     order = result.orders[0]
     assert order.external_order_no == "A-001"
-    assert order.settlement_amount == 150.0
+    assert order.metrics["sales_amount"] == 150.0
+    assert order.metrics["settlement_paid"] == 150.0
     assert order.platform_name == "ctrip"
     assert order.source_row_count == 2
 
@@ -42,3 +44,16 @@ def test_platform_registry_returns_ctrip_adapter() -> None:
     adapter = get_platform_adapter("ctrip")
 
     assert isinstance(adapter, CtripAdapter)
+
+
+def test_ctrip_report_definition_uses_default_six_columns() -> None:
+    definition = get_platform_report_definition("ctrip")
+
+    assert [column.label for column in definition.columns] == [
+        "产品名称",
+        "核销人次",
+        "销售额",
+        "结算实付",
+        "采购金额",
+        "利润",
+    ]

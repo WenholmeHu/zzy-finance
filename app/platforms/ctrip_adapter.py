@@ -10,11 +10,19 @@ from app.platforms.base import PlatformAdapter
 
 
 class CtripAdapter(PlatformAdapter):
+    """携程适配器实现。
+
+    主要完成两件事：
+    - 把携程特有字段映射到统一模型；
+    - 将原始明细按订单号聚合成可对账数据。
+    """
+
     platform_name = "ctrip"
     worksheet_name = "流水"
 
     def parse(self, dataframe: pd.DataFrame, reconciliation_month: str) -> PlatformParseResult:
         """解析携程数据并按对账月份过滤。"""
+        # 这里定义的是“携程原始字段名”，改模板时优先修改此处。
         third_order_column = "第三方单号"
         settlement_column = "结算价金额"
         departure_column = "出发时间"
@@ -33,6 +41,7 @@ class CtripAdapter(PlatformAdapter):
         working["_departure_date"] = pd.to_datetime(working[departure_column], errors="coerce")
 
         # 只保留对账月份内的出发记录。
+        # 条件采用 [start, next_month_start) 避免月底 23:59:59 边界问题。
         start_date, next_month_start = month_date_range(reconciliation_month)
         in_month_mask = (
             working["_departure_date"].notna()
@@ -62,10 +71,15 @@ class CtripAdapter(PlatformAdapter):
                 departure_value.date() if isinstance(departure_value, pd.Timestamp) else None
             )
             order_no = row["external_order_no"]
+            # order_no 在 grouped 中可能仍是数值类型，这里统一转字符串以对齐内部订单号。
+            settlement_amount = float(row[settlement_column])
             orders.append(
                 ExternalOrderAggregate(
                     external_order_no=str(order_no),
-                    settlement_amount=float(row[settlement_column]),
+                    metrics={
+                        "sales_amount": settlement_amount,
+                        "settlement_paid": settlement_amount,
+                    },
                     platform_name=self.platform_name,
                     source_row_count=int(row_counts[str(order_no)]),
                     business_date=business_date,

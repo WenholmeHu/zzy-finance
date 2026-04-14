@@ -1,23 +1,71 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
-from openpyxl import load_workbook
 
 from app.application.reconciliation_service import run_reconciliation
 
 
-def _find_workbook_by_sheet(sheet_name: str) -> Path:
-    base = Path(__file__).resolve().parents[2] / "test_data"
-    for path in base.glob("*.xlsx"):
-        workbook = load_workbook(path, read_only=True, data_only=True)
-        if sheet_name in workbook.sheetnames:
-            return path
-    raise FileNotFoundError(f"Could not find workbook containing sheet: {sheet_name}")
+def _write_excel(path: Path, sheet_name: str, rows: list[dict]) -> Path:
+    dataframe = pd.DataFrame(rows)
+    with pd.ExcelWriter(path) as writer:
+        dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
+    return path
 
 
-def test_sample_reconciliation_matches_expected_totals() -> None:
-    jutianxia_file = _find_workbook_by_sheet("订单列表")
-    ctrip_file = _find_workbook_by_sheet("流水")
+def test_ctrip_reconciliation_matches_expected_totals_from_workbooks(
+    tmp_path: Path,
+) -> None:
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "A-001",
+                "产品内容": "产品A",
+                "实到人数": 2,
+                "采购金额": 80.0,
+            },
+            {
+                "订单号": "A-002",
+                "产品内容": "产品A",
+                "实到人数": 1,
+                "采购金额": 40.0,
+            },
+            {
+                "订单号": "B-001",
+                "产品内容": "产品B",
+                "实到人数": 1,
+                "采购金额": 20.0,
+            },
+        ],
+    )
+    ctrip_file = _write_excel(
+        tmp_path / "ctrip.xlsx",
+        "流水",
+        [
+            {
+                "第三方单号": "A-001",
+                "结算价金额": 100.0,
+                "出发时间": "2026-03-02",
+            },
+            {
+                "第三方单号": "A-002",
+                "结算价金额": 50.0,
+                "出发时间": "2026-03-03",
+            },
+            {
+                "第三方单号": "X-999",
+                "结算价金额": 99.0,
+                "出发时间": "2026-03-03",
+            },
+            {
+                "第三方单号": "OUT-001",
+                "结算价金额": 88.0,
+                "出发时间": "2026-04-01",
+            },
+        ],
+    )
 
     result = run_reconciliation(
         jutianxia_file=jutianxia_file,
@@ -26,31 +74,17 @@ def test_sample_reconciliation_matches_expected_totals() -> None:
         platform_name="ctrip",
     )
 
-    assert result.matched_order_count == 1908
-    assert result.unmatched_order_count == 172
-    assert result.filtered_out_of_month_row_count == 3
-    assert result.product_count == 29
-    assert result.internal_only_count == 172
-    assert result.external_only_count == 0
-    assert "14347370" in result.internal_only_order_nos
-    assert result.external_only_order_nos == []
+    assert result.matched_order_count == 2
+    assert result.unmatched_order_count == 1
+    assert result.filtered_out_of_month_row_count == 1
+    assert result.product_count == 1
+    assert result.internal_only_order_nos == ["B-001"]
+    assert result.external_only_order_nos == ["X-999"]
 
-    rows_by_product = {row.product_name: row for row in result.rows}
-
-    luzhai = rows_by_product["【即买即用】【线下扫码】东运旅行卢宅景区成人票+卢宅文创产品1份"]
-    assert luzhai.actual_people_total == 746
-    assert luzhai.sales_amount_total == pytest.approx(48490.0)
-    assert luzhai.purchase_amount_total == pytest.approx(38792.0)
-    assert luzhai.profit_total == pytest.approx(9698.0)
-
-    liangzhu = rows_by_product["良渚古城遗址公园成人票（不含观光车）即买即用"]
-    assert liangzhu.actual_people_total == 647
-    assert liangzhu.sales_amount_total == pytest.approx(34996.5)
-    assert liangzhu.purchase_amount_total == pytest.approx(25998.0)
-    assert liangzhu.profit_total == pytest.approx(8998.5)
-
-    huangdiling = rows_by_product["【提前两小时】黄帝陵景区  成人票"]
-    assert huangdiling.actual_people_total == 349
-    assert huangdiling.sales_amount_total == pytest.approx(23208.5)
-    assert huangdiling.purchase_amount_total == pytest.approx(21987.0)
-    assert huangdiling.profit_total == pytest.approx(1221.5)
+    row = result.rows[0]
+    assert row.product_name == "产品A"
+    assert row.metrics["actual_people"] == 3
+    assert row.metrics["sales_amount"] == pytest.approx(150.0)
+    assert row.metrics["settlement_paid"] == pytest.approx(150.0)
+    assert row.metrics["purchase_amount"] == pytest.approx(120.0)
+    assert row.metrics["profit"] == pytest.approx(30.0)

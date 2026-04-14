@@ -24,20 +24,14 @@ def reconcile_orders(
     external_index = {order.external_order_no: order for order in external_orders}
 
     # 分组桶：key 是产品名称，value 是当前产品的累计指标。
-    grouped: dict[str, dict[str, float]] = defaultdict(
-        lambda: {
-            "actual_people_total": 0.0,
-            "sales_amount_total": 0.0,
-            "settlement_paid_total": 0.0,
-            "purchase_amount_total": 0.0,
-        }
-    )
+    grouped: dict[str, defaultdict[str, float]] = defaultdict(lambda: defaultdict(float))
     matched_order_count = 0
     unmatched_order_count = 0
     internal_order_nos = {order.order_no for order in internal_orders}
     external_order_nos = {order.external_order_no for order in external_orders}
 
     for internal_order in internal_orders:
+        # 以“内部订单号 == 外部订单号”作为唯一匹配规则。
         external_order = external_index.get(internal_order.order_no)
         if external_order is None:
             unmatched_order_count += 1
@@ -45,26 +39,23 @@ def reconcile_orders(
 
         matched_order_count += 1
         bucket = grouped[internal_order.product_name]
-        bucket["actual_people_total"] += internal_order.actual_people
-        bucket["sales_amount_total"] += external_order.settlement_amount
-        bucket["settlement_paid_total"] += external_order.settlement_amount
-        bucket["purchase_amount_total"] += internal_order.purchase_amount
+        bucket["actual_people"] += internal_order.actual_people
+        bucket["purchase_amount"] += internal_order.purchase_amount
+        for metric_name, metric_value in external_order.metrics.items():
+            bucket[metric_name] += metric_value
 
     rows = []
     # 排序后输出，保证页面和导出结果稳定，便于复核。
     for product_name, totals in sorted(grouped.items()):
+        totals["profit"] = totals["settlement_paid"] - totals["purchase_amount"]
         rows.append(
             ProductSummaryRow(
                 product_name=product_name,
-                actual_people_total=totals["actual_people_total"],
-                sales_amount_total=totals["sales_amount_total"],
-                settlement_paid_total=totals["settlement_paid_total"],
-                purchase_amount_total=totals["purchase_amount_total"],
-                profit_total=totals["settlement_paid_total"]
-                - totals["purchase_amount_total"],
+                metrics=dict(totals),
             )
         )
 
+    # 差异清单用于页面“订单差异检查”模块，按字符串排序便于人工核对。
     internal_only_order_nos = sorted(internal_order_nos - external_order_nos)
     external_only_order_nos = sorted(external_order_nos - internal_order_nos)
 
