@@ -4,6 +4,7 @@ from app.platforms.ctrip_adapter import CtripAdapter
 from app.platforms.douyin_adapter import DouyinAdapter
 from app.platforms.meituan_adapter import MeituanAdapter
 from app.platforms.base import PlatformSpec
+from app.platforms.tongcheng_adapter import TongchengAdapter
 
 
 _PLATFORM_SPECS = {
@@ -33,6 +34,16 @@ _PLATFORM_SPECS = {
         internal_difference_label="渠道订单号",
         external_difference_label="订单编号",
         adapter_factory=DouyinAdapter,
+    ),
+    "tongcheng": PlatformSpec(
+        platform_name="tongcheng",
+        platform_label="同程",
+        worksheet_names=(),
+        internal_order_column="订单号",
+        internal_difference_label="订单号",
+        external_difference_label="三方流水号",
+        adapter_factory=TongchengAdapter,
+        worksheet_mode="single_dynamic",
     ),
 }
 

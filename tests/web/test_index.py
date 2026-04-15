@@ -13,6 +13,7 @@ def test_home_page_renders_successfully() -> None:
     assert "平台选择" in response.text
     assert "携程" in response.text
     assert "美团" in response.text
+    assert "同程" in response.text
     assert "聚天下文件" in response.text
     assert "外部平台文件" in response.text
     assert "开始对账" in response.text

@@ -67,6 +67,18 @@ _PLATFORM_REPORT_DEFINITIONS = {
             ReportColumn(key="profit", label="利润"),
         ],
     ),
+    "tongcheng": PlatformReportDefinition(
+        platform_name="tongcheng",
+        platform_label="同程",
+        columns=[
+            ReportColumn(key="product_name", label="产品名称", is_numeric=False),
+            ReportColumn(key="actual_people", label="核销人次"),
+            ReportColumn(key="sales_amount", label="销售额"),
+            ReportColumn(key="settlement_paid", label="结算实付"),
+            ReportColumn(key="purchase_amount", label="采购金额"),
+            ReportColumn(key="profit", label="利润"),
+        ],
+    ),
 }
 
 

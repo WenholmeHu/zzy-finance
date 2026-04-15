@@ -208,3 +208,64 @@ def test_reconcile_route_renders_douyin_platform_and_headers(tmp_path: Path) -> 
     assert "利润" in response.text
     assert "渠道订单号" in response.text
     assert "订单编号" in response.text
+
+
+def test_reconcile_route_renders_tongcheng_platform_and_headers(tmp_path: Path) -> None:
+    client = TestClient(app)
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia_tongcheng.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "TC-001",
+                "产品内容": "同程产品A",
+                "实到人数": 2,
+                "采购金额": 150.0,
+            }
+        ],
+    )
+    tongcheng_file = _write_workbook(
+        tmp_path / "tongcheng.xlsx",
+        {
+            "订单2026-04-01": [
+                {
+                    "旅游日期": "2026-03-02",
+                    "应结(元)": 200.0,
+                    "三方流水号": "TC-001",
+                }
+            ]
+        },
+    )
+
+    with jutianxia_file.open("rb") as jutianxia_stream, tongcheng_file.open("rb") as tongcheng_stream:
+        response = client.post(
+            "/reconcile",
+            data={
+                "reconciliation_month": "2026-03",
+                "platform": "tongcheng",
+            },
+            files={
+                "jutianxia_file": (
+                    jutianxia_file.name,
+                    jutianxia_stream,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+                "platform_file": (
+                    tongcheng_file.name,
+                    tongcheng_stream,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+    assert 'value="tongcheng"' in response.text
+    assert "产品名称" in response.text
+    assert "核销人次" in response.text
+    assert "销售额" in response.text
+    assert "结算实付" in response.text
+    assert "采购金额" in response.text
+    assert "利润" in response.text
+    assert "订单号" in response.text
+    assert "三方流水号" in response.text
+    assert "同程产品A" in response.text

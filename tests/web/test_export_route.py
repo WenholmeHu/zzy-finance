@@ -113,6 +113,46 @@ def test_export_route_supports_meituan_dynamic_columns() -> None:
     assert worksheet["H5"].value == 20
 
 
+def test_export_route_supports_tongcheng_default_report_columns() -> None:
+    client = TestClient(app)
+    payload = json.dumps(
+        {
+            "reconciliation_month": "2026-03",
+            "platform_name": "tongcheng",
+            "rows": [
+                {
+                    "product_name": "同程产品",
+                    "metrics": {
+                        "actual_people": 2,
+                        "sales_amount": 200.0,
+                        "settlement_paid": 200.0,
+                        "purchase_amount": 150.0,
+                        "profit": 50.0,
+                    },
+                }
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+    response = client.post("/export", data={"payload": payload})
+
+    assert response.status_code == 200
+
+    workbook = load_workbook(BytesIO(response.content))
+    worksheet = workbook["对账结果"]
+
+    assert worksheet["B2"].value == "同程"
+    assert worksheet["A4"].value == "产品名称"
+    assert worksheet["B4"].value == "核销人次"
+    assert worksheet["C4"].value == "销售额"
+    assert worksheet["D4"].value == "结算实付"
+    assert worksheet["E4"].value == "采购金额"
+    assert worksheet["F4"].value == "利润"
+    assert worksheet["A5"].value == "同程产品"
+    assert worksheet["F5"].value == 50
+
+
 def test_export_differences_route_returns_excel_file() -> None:
     client = TestClient(app)
     payload = json.dumps(
@@ -184,3 +224,29 @@ def test_export_differences_route_uses_douyin_difference_headers() -> None:
     assert internal_only_sheet["B5"].value == "DY-001"
     assert external_only_sheet["B4"].value == "订单编号"
     assert external_only_sheet["B5"].value == "DY-404"
+
+
+def test_export_differences_route_uses_tongcheng_difference_headers() -> None:
+    client = TestClient(app)
+    payload = json.dumps(
+        {
+            "reconciliation_month": "2026-03",
+            "platform_name": "tongcheng",
+            "internal_only_order_nos": ["TC-001"],
+            "external_only_order_nos": ["TC-404"],
+        },
+        ensure_ascii=False,
+    )
+
+    response = client.post("/export-differences", data={"payload": payload})
+
+    assert response.status_code == 200
+
+    workbook = load_workbook(BytesIO(response.content))
+    internal_only_sheet = workbook["聚天下有、第三方当月无"]
+    external_only_sheet = workbook["第三方有、聚天下当月无"]
+
+    assert internal_only_sheet["B4"].value == "订单号"
+    assert internal_only_sheet["B5"].value == "TC-001"
+    assert external_only_sheet["B4"].value == "三方流水号"
+    assert external_only_sheet["B5"].value == "TC-404"
