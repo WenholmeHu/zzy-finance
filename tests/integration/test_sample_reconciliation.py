@@ -254,6 +254,198 @@ def test_run_reconciliation_raises_clear_error_when_a_specified_worksheet_is_mis
         )
 
 
+def test_run_reconciliation_loads_the_only_dynamic_platform_worksheet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "TC-001",
+                "产品内容": "产品A",
+                "实到人数": 1,
+                "采购金额": 18.0,
+            }
+        ],
+    )
+    tongcheng_file = _write_excel(
+        tmp_path / "tongcheng.xlsx",
+        "订单2026-04-01",
+        [
+            {
+                "旅游日期": "2026-03-02",
+                "应结(元)": 20.0,
+                "三方流水号": "TC-001",
+            }
+        ],
+    )
+
+    fake_spec = PlatformSpec(
+        platform_name="tongcheng",
+        platform_label="同程",
+        worksheet_names=(),
+        worksheet_mode="single_dynamic",
+        internal_order_column="订单号",
+        internal_difference_label="订单号",
+        external_difference_label="三方流水号",
+        adapter_factory=None,
+    )
+
+    class RecordingAdapter:
+        def __init__(self) -> None:
+            self.seen_workbook_data: dict[str, pd.DataFrame] | None = None
+
+        def parse_workbook(
+            self,
+            workbook_data: dict[str, pd.DataFrame],
+            reconciliation_month: str,
+        ) -> PlatformParseResult:
+            self.seen_workbook_data = workbook_data
+            assert reconciliation_month == "2026-03"
+            assert list(workbook_data) == ["订单2026-04-01"]
+            assert workbook_data["订单2026-04-01"].iloc[0]["三方流水号"] == "TC-001"
+            return PlatformParseResult(orders=[], filtered_out_of_month_row_count=0)
+
+    adapter = RecordingAdapter()
+    monkeypatch.setattr(
+        "app.application.reconciliation_service.get_platform_spec",
+        lambda platform_name: fake_spec,
+    )
+    monkeypatch.setattr(
+        "app.application.reconciliation_service.get_platform_adapter",
+        lambda platform_name: adapter,
+    )
+
+    result = run_reconciliation(
+        jutianxia_file=jutianxia_file,
+        platform_file=tongcheng_file,
+        reconciliation_month="2026-03",
+        platform_name="tongcheng",
+    )
+
+    assert adapter.seen_workbook_data is not None
+    assert result.matched_order_count == 0
+    assert result.filtered_out_of_month_row_count == 0
+
+
+def test_run_reconciliation_raises_clear_error_when_dynamic_platform_has_multiple_sheets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "TC-001",
+                "产品内容": "产品A",
+                "实到人数": 1,
+                "采购金额": 18.0,
+            }
+        ],
+    )
+    tongcheng_file = _write_excel(
+        tmp_path / "tongcheng.xlsx",
+        "订单2026-04-01",
+        [
+            {
+                "旅游日期": "2026-03-02",
+                "应结(元)": 20.0,
+                "三方流水号": "TC-001",
+            }
+        ],
+    )
+    with pd.ExcelWriter(tongcheng_file, mode="a", engine="openpyxl") as writer:
+        pd.DataFrame([{"说明": "额外工作表"}]).to_excel(writer, sheet_name="说明", index=False)
+
+    fake_spec = PlatformSpec(
+        platform_name="tongcheng",
+        platform_label="同程",
+        worksheet_names=(),
+        worksheet_mode="single_dynamic",
+        internal_order_column="订单号",
+        internal_difference_label="订单号",
+        external_difference_label="三方流水号",
+        adapter_factory=None,
+    )
+
+    monkeypatch.setattr(
+        "app.application.reconciliation_service.get_platform_spec",
+        lambda platform_name: fake_spec,
+    )
+    monkeypatch.setattr(
+        "app.application.reconciliation_service.get_platform_adapter",
+        lambda platform_name: object(),
+    )
+
+    with pytest.raises(ValueError, match="平台 tongcheng 必须且只能包含 1 个工作表"):
+        run_reconciliation(
+            jutianxia_file=jutianxia_file,
+            platform_file=tongcheng_file,
+            reconciliation_month="2026-03",
+            platform_name="tongcheng",
+        )
+
+
+def test_run_reconciliation_raises_clear_error_when_platform_worksheet_mode_is_invalid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "TC-001",
+                "产品内容": "产品A",
+                "实到人数": 1,
+                "采购金额": 18.0,
+            }
+        ],
+    )
+    tongcheng_file = _write_excel(
+        tmp_path / "tongcheng.xlsx",
+        "订单2026-04-01",
+        [
+            {
+                "旅游日期": "2026-03-02",
+                "应结(元)": 20.0,
+                "三方流水号": "TC-001",
+            }
+        ],
+    )
+
+    fake_spec = PlatformSpec(
+        platform_name="tongcheng",
+        platform_label="同程",
+        worksheet_names=(),
+        worksheet_mode="typo_mode",
+        internal_order_column="订单号",
+        internal_difference_label="订单号",
+        external_difference_label="三方流水号",
+        adapter_factory=None,
+    )
+
+    monkeypatch.setattr(
+        "app.application.reconciliation_service.get_platform_spec",
+        lambda platform_name: fake_spec,
+    )
+    monkeypatch.setattr(
+        "app.application.reconciliation_service.get_platform_adapter",
+        lambda platform_name: object(),
+    )
+
+    with pytest.raises(ValueError, match="平台 tongcheng 的工作表加载模式不受支持: typo_mode"):
+        run_reconciliation(
+            jutianxia_file=jutianxia_file,
+            platform_file=tongcheng_file,
+            reconciliation_month="2026-03",
+            platform_name="tongcheng",
+        )
+
+
 def test_load_internal_orders_uses_the_specified_match_column(tmp_path: Path) -> None:
     jutianxia_file = _write_excel(
         tmp_path / "jutianxia.xlsx",

@@ -45,3 +45,4 @@ class PlatformSpec:
     internal_difference_label: str
     external_difference_label: str
     adapter_factory: type[PlatformAdapter] | None
+    worksheet_mode: str = "fixed"

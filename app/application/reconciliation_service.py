@@ -6,8 +6,9 @@ from pathlib import Path
 import pandas as pd
 
 from app.domain.reconcile import reconcile_orders
-from app.infrastructure.excel_reader import read_excel_sheet
+from app.infrastructure.excel_reader import list_excel_sheet_names, read_excel_sheet
 from app.models.reconciliation import InternalOrder, ReconciliationResult
+from app.platforms.base import PlatformSpec
 from app.platforms.registry import get_platform_adapter, get_platform_spec
 
 
@@ -46,8 +47,7 @@ def run_reconciliation(
     # Step 3: 读取平台工作簿中的所有目标工作表，并交给适配器做清洗、过滤、聚合。
     workbook_data = _load_platform_workbook_data(
         platform_file=platform_file,
-        worksheet_names=spec.worksheet_names,
-        platform_name=platform_name,
+        platform_spec=spec,
     )
     platform_result = adapter.parse_workbook(
         workbook_data=workbook_data,
@@ -112,18 +112,34 @@ def _normalize_order_no(raw_value: str) -> str:
 
 def _load_platform_workbook_data(
     platform_file: Path,
-    worksheet_names: tuple[str, ...],
-    platform_name: str,
+    platform_spec: PlatformSpec,
 ) -> dict[str, pd.DataFrame]:
     """读取平台工作簿中约定的所有工作表。
 
     缺少指定工作表时，统一翻译成包含平台名和工作表名的业务错误，
     这样上层不需要理解 pandas 的底层异常文案。
     """
-    workbook_data = {}
-    for worksheet_name in worksheet_names:
-        try:
-            workbook_data[worksheet_name] = read_excel_sheet(platform_file, worksheet_name)
-        except ValueError as exc:
-            raise ValueError(f"平台 {platform_name} 缺少工作表: {worksheet_name}") from exc
-    return workbook_data
+    if platform_spec.worksheet_mode == "single_dynamic":
+        sheet_names = list_excel_sheet_names(platform_file)
+        if len(sheet_names) != 1:
+            raise ValueError(
+                f"平台 {platform_spec.platform_name} 必须且只能包含 1 个工作表"
+            )
+        worksheet_name = sheet_names[0]
+        return {
+            worksheet_name: read_excel_sheet(platform_file, worksheet_name),
+        }
+    if platform_spec.worksheet_mode == "fixed":
+        workbook_data = {}
+        for worksheet_name in platform_spec.worksheet_names:
+            try:
+                workbook_data[worksheet_name] = read_excel_sheet(platform_file, worksheet_name)
+            except ValueError as exc:
+                raise ValueError(
+                    f"平台 {platform_spec.platform_name} 缺少工作表: {worksheet_name}"
+                ) from exc
+        return workbook_data
+    raise ValueError(
+        f"平台 {platform_spec.platform_name} 的工作表加载模式不受支持: "
+        f"{platform_spec.worksheet_mode}"
+    )

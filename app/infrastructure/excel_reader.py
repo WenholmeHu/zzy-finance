@@ -9,6 +9,12 @@ from pathlib import Path
 import pandas as pd
 
 
+def list_excel_sheet_names(file_path: Path) -> list[str]:
+    """返回工作簿中的所有工作表名。"""
+    with pd.ExcelFile(file_path) as workbook:
+        return list(workbook.sheet_names)
+
+
 def read_excel_sheet(
     file_path: Path,
     sheet_name: str,
