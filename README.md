@@ -1,160 +1,377 @@
 # Finance Reconciliation
 
-本项目是一个面向财务人员使用的本地网页对账工具。
+本项目是一个面向财务人员使用的本地网页对账工具，当前已经支持：
 
-当前状态：已完成“聚天下 + 携程”和“聚天下 + 美团”对账主流程，支持网页上传、按月过滤、按产品汇总、双向差异检查与 Excel 导出。
+- `聚天下 + 携程`
+- `聚天下 + 美团`
+- `聚天下 + 抖音`
 
-## 项目架构说明
+系统提供：
 
-当前代码采用“分层 + 平台适配器 + 平台报表定义”结构，核心目标是：
-- 对账业务逻辑与 Web/Excel 技术细节解耦；
-- 便于后续继续接入飞猪等更多平台；
-- 支持不同平台使用不同的主结果表列结构；
-- 保持流程清晰，方便维护与测试。
+- 网页上传双 Excel
+- 按月过滤外部平台数据
+- 订单匹配后按产品汇总
+- 主结果表展示
+- 双向订单差异检查
+- 主结果 Excel 导出
+- 差异订单 Excel 导出
 
-### 1) 目录与分层职责
+## 当前版本的真实边界
 
-`app/` 目录的主要结构如下：
+当前代码已经不是“固定 6 列、单金额字段”的早期版本，而是 3 层扩展机制叠加的结构：
 
-- `main.py`
-  - FastAPI 应用入口。
-  - 挂载静态资源目录（`/static`）并注册网页路由。
+1. `平台元数据`
+2. `平台适配器`
+3. `平台报表定义`
 
-- `web/`
-  - `routes.py`：Web 层控制器，负责接收表单、保存上传文件、调用应用服务、渲染页面、处理导出。
-  - `templates/index.html`：前端页面模板。
-  - `static/styles.css`：页面样式。
+这意味着系统已经支持：
 
-- `application/`
-  - `reconciliation_service.py`：应用服务层，编排完整对账流程（读内部单、选平台适配器、解析平台数据、调用领域算法、组装结果）。
+- 不同平台使用不同工作表
+- 不同平台使用不同聚天下关联字段
+- 不同平台使用不同订单级指标集合
+- 不同平台使用不同主结果表列结构
+- 不同平台使用不同差异表头
 
-- `domain/`
-  - `reconcile.py`：纯业务核心，对内部订单与外部订单做匹配，并按产品汇总指标与利润。
+但当前系统仍然默认：
 
-- `models/`
-  - `reconciliation.py`：领域数据模型（如 `InternalOrder`、`ExternalOrderAggregate`、`ReconciliationResult` 等）。
+- 只有 `1` 个主结果表
+- 只有 `2` 个方向的差异结果
+- 匹配模型仍然是“内部订单号 = 外部订单号”
+- 汇总粒度仍然是 `产品内容`
+- 利润公式仍然是 `结算实付 - 采购金额`
 
-- `platforms/`
-  - `base.py`：平台适配器抽象接口。
-  - `ctrip_adapter.py`：携程实现，负责字段校验、按月过滤、按订单号聚合。
-  - `meituan_adapter.py`：美团实现，负责字段校验、按月过滤、按订单号聚合和多指标映射。
-  - `registry.py`：平台名到适配器的注册与分发。
-  - `report_definitions.py`：平台主结果表列定义与平台显示元数据。
+如果未来某个平台超出这些边界，不应只改适配器，而要同步升级领域层、页面或导出结构。
 
-- `infrastructure/`
-  - `excel_reader.py`：Excel 读取。
-  - `excel_writer.py`：Excel 导出构建。
-  - `date_parser.py`：月份日期区间工具（用于“按月过滤”）。
+## 目录与职责
 
-### 2) 运行链路（从页面到结果）
+`app/` 目录的关键结构如下：
 
-1. 用户在首页选择对账月份、平台并上传两个 Excel。  
-2. `web/routes.py` 接收请求并将文件写入临时目录。  
-3. `application/reconciliation_service.py` 启动对账流程：
-   - 读取聚天下内部订单；
-   - 按平台名获取适配器（当前支持携程、美团）；
-   - 解析平台 Excel 为统一外部订单结构；
-   - 调用 `domain/reconcile.py` 做匹配与汇总。  
-4. Web 层将结果渲染为页面摘要 + 明细表。  
-5. 页面根据平台报表定义动态展示主结果表，并同时展示双向订单差异检查结果。
-6. 点击“导出 Excel”后，系统导出主结果文件。
-7. 点击“导出差异表”后，系统单独导出差异订单文件。
+- `app/main.py`
+  - FastAPI 应用入口
 
-### 3) 架构边界（为什么这样分）
+- `app/web/`
+  - `routes.py`
+    - 接收上传
+    - 调用应用服务
+    - 渲染页面
+    - 处理导出
+  - `templates/index.html`
+    - 结果页与动态表头展示
+  - `static/styles.css`
+    - 页面样式
 
-- Web 层只负责“收发请求与页面渲染”，不直接写业务算法。
-- Domain 层只负责业务规则，不依赖 FastAPI、模板或具体平台文件格式。
-- 平台文件差异放在 `platforms/` 适配器中，平台主结果列差异放在 `report_definitions.py` 中。
-- Excel 读写放在 `infrastructure/`，避免技术细节污染业务逻辑。
+- `app/application/`
+  - `reconciliation_service.py`
+    - 一次完整对账的流程编排
+    - 读取聚天下
+    - 读取平台工作簿
+    - 调用平台适配器
+    - 调用领域汇总
 
-### 4) 扩展指引（新增一个平台）
+- `app/domain/`
+  - `reconcile.py`
+    - 通用对账算法
+    - 匹配订单
+    - 汇总产品
+    - 计算利润
+    - 生成双向差异结果
 
-1. 在 `app/platforms/` 新增适配器类并实现 `parse`。  
-2. 在 `registry.py` 注册新平台名与适配器。  
-3. 在 `report_definitions.py` 中补充该平台的主结果列定义。  
-4. 页面平台选项会从平台定义自动渲染，无需再手动写死模板选项。  
-5. 为新适配器和对应平台流程补充测试用例（建议放在 `tests/platforms/`、`tests/integration/`、`tests/web/`）。
+- `app/models/`
+  - `reconciliation.py`
+    - 统一数据模型
+    - `InternalOrder`
+    - `ExternalOrderAggregate`
+    - `PlatformParseResult`
+    - `ProductSummaryRow`
+    - `ReconciliationResult`
 
-## 功能清单
+- `app/platforms/`
+  - `base.py`
+    - `PlatformAdapter`
+    - `PlatformSpec`
+  - `registry.py`
+    - 平台注册表
+    - 平台工作表列表
+    - 聚天下关联字段
+    - 差异表头
+  - `report_definitions.py`
+    - 平台主结果表列定义
+  - `ctrip_adapter.py`
+    - 携程解析逻辑
+  - `meituan_adapter.py`
+    - 美团解析逻辑
+  - `douyin_adapter.py`
+    - 抖音解析逻辑
 
-### 已实现
+- `app/infrastructure/`
+  - `excel_reader.py`
+    - Excel 读取
+  - `excel_writer.py`
+    - 主结果 / 差异表导出
+  - `date_parser.py`
+    - 月份区间工具
 
-- 本地 Web 页面上传双 Excel（聚天下 + 外部平台）
-- 按 `reconciliation_month` 对外部平台数据做月份过滤
-- 订单号匹配后按产品聚合，支持平台动态指标
-- 结果页展示总览卡片、主结果表、双向差异订单列表（带序号）
-- 一键导出对账 Excel（工作表：`对账结果`）
-- 一键导出差异订单 Excel（两个工作表，顶部标明平台）
-- 平台适配器机制（当前内置 `ctrip`、`meituan`）
-- 平台动态主结果表
-  - 携程：`产品名称 / 核销人次 / 销售额 / 结算实付 / 采购金额 / 利润`
-  - 美团：`产品名称 / 核销人次 / 销售额 / 技术服务费 / 优惠券（商家承担） / 结算实付 / 采购金额 / 利润`
+## 三个平台的代码边界
 
-### 暂未实现
+### 平台元数据边界
 
-- 飞猪等更多平台适配器
-- 对账历史持久化
-- 登录与权限控制
-- 桌面客户端打包
+平台静态元数据集中在 [registry.py](D:/DaMoXing/ZZY/finance/app/platforms/registry.py)。
 
-## 输入文件要求
+这里负责：
 
-聚天下文件（工作表：`订单列表`）需包含：
+- 平台内部代号
+- 平台中文名
+- 需要读取哪些工作表
+- 聚天下使用哪个字段参与匹配
+- 差异表显示什么表头
+- 对应适配器类
+
+当前 3 个平台的核心元数据如下：
+
+| 平台 | 工作表 | 聚天下关联字段 | 差异表头（内部） | 差异表头（外部） |
+| --- | --- | --- | --- | --- |
+| 携程 | `流水` | `订单号` | `订单号` | `第三方单号` |
+| 美团 | `订单详情` | `订单号` | `订单号` | `商家订单号` |
+| 抖音 | `分账明细-正向-团购`、`分账明细-退款-团购` | `渠道订单号` | `渠道订单号` | `订单编号` |
+
+如果某个平台以后要改：
+
+- 聚天下匹配字段
+- 工作表名称
+- 差异表表头
+
+优先改这里，而不是直接改领域层。
+
+### 平台输入解析边界
+
+平台原始 Excel 的清洗、字段映射、按月过滤、一单多行聚合，统一放在 `app/platforms/*_adapter.py`。
+
+当前每个平台的职责划分如下：
+
+- 携程
+  - 文件：[ctrip_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/ctrip_adapter.py)
+  - 负责：
+    - 读取 `流水`
+    - 使用 `出发时间` 过滤
+    - `第三方单号` 聚合
+    - 输出：
+      - `sales_amount`
+      - `settlement_paid`
+
+- 美团
+  - 文件：[meituan_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/meituan_adapter.py)
+  - 负责：
+    - 读取 `订单详情`
+    - 使用 `销售时间` 过滤
+    - `商家订单号` 聚合
+    - 输出：
+      - `sales_amount`
+      - `technical_service_fee`
+      - `merchant_coupon`
+      - `settlement_paid`
+
+- 抖音
+  - 文件：[douyin_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/douyin_adapter.py)
+  - 负责：
+    - 同时读取 `分账明细-正向-团购`、`分账明细-退款-团购`
+    - 使用 `核销时间` 过滤
+    - 两张表合并后按 `订单编号` 聚合
+    - 退款口径按“原值直接相加”
+    - 输出：
+      - `sales_amount`
+      - `technical_service_fee`
+      - `commission`
+      - `service_provider_commission`
+      - `settlement_paid`
+
+如果某个平台以后只是：
+
+- 字段名变化
+- 日期列变化
+- 工作表变化
+- 多一个输入工作表
+- 金额映射变化
+
+优先改该平台适配器。
+
+### 主结果表边界
+
+主结果表的列定义集中在 [report_definitions.py](D:/DaMoXing/ZZY/finance/app/platforms/report_definitions.py)。
+
+这里负责：
+
+- 每个平台主结果表有哪些列
+- 列顺序
+- 列标题
+- 哪些列按数值右对齐
+
+当前 3 个平台的主结果表：
+
+- 携程：
+  - `产品名称 / 核销人次 / 销售额 / 结算实付 / 采购金额 / 利润`
+
+- 美团：
+  - `产品名称 / 核销人次 / 销售额 / 技术服务费 / 优惠券（商家承担） / 结算实付 / 采购金额 / 利润`
+
+- 抖音：
+  - `产品名称 / 核销人次 / 销售额 / 技术服务费 / 佣金 / 服务商佣金 / 结算实付 / 采购金额 / 利润`
+
+如果某个平台以后只是“结果列不同”，优先改这里。
+
+### 应用编排边界
+
+[reconciliation_service.py](D:/DaMoXing/ZZY/finance/app/application/reconciliation_service.py) 负责串联所有平台共享流程：
+
+1. 根据 `PlatformSpec` 选择聚天下匹配字段
+2. 读取聚天下 `订单列表`
+3. 读取平台工作簿中指定工作表
+4. 调用平台适配器
+5. 把统一结果交给领域层
+
+如果以后要改：
+
+- 聚天下读取规则
+- 平台工作簿加载规则
+- 订单号保真 / `.0` 清洗
+- 平台共用的流程编排
+
+优先改这里。
+
+### 领域规则边界
+
+[reconcile.py](D:/DaMoXing/ZZY/finance/app/domain/reconcile.py) 是全平台共享的统一业务算法。
+
+这里负责：
+
+- `internal.order_no == external.external_order_no`
+- 按 `product_name` 汇总
+- 汇总内部指标：
+  - `actual_people`
+  - `purchase_amount`
+- 汇总外部 `metrics`
+- 计算：
+  - `profit = settlement_paid - purchase_amount`
+- 生成：
+  - `internal_only_order_nos`
+  - `external_only_order_nos`
+
+如果以后要改：
+
+- 利润公式
+- 汇总维度
+- 匹配模型
+- 差异结果生成规则
+
+不要只改平台适配器，而要评估这里是否要升级。
+
+## 改某一个平台时，先看哪里
+
+| 需求类型 | 优先修改文件 |
+| --- | --- |
+| 只改某平台输入字段/日期/聚合逻辑 | `app/platforms/<platform>_adapter.py` |
+| 改某平台工作表名 | `app/platforms/registry.py` |
+| 改某平台聚天下匹配字段 | `app/platforms/registry.py` |
+| 改某平台差异表头 | `app/platforms/registry.py` |
+| 改某平台主结果表列 | `app/platforms/report_definitions.py` |
+| 改所有平台共享读取流程 | `app/application/reconciliation_service.py` / `app/infrastructure/excel_reader.py` |
+| 改页面展示结构 | `app/web/routes.py` / `app/web/templates/index.html` |
+| 改导出结构 | `app/infrastructure/excel_writer.py` |
+| 改利润/汇总/差异核心算法 | `app/domain/reconcile.py` |
+
+## 平台扩展的标准入口
+
+后续新增平台，优先看这几份代码：
+
+- [base.py](D:/DaMoXing/ZZY/finance/app/platforms/base.py)
+- [registry.py](D:/DaMoXing/ZZY/finance/app/platforms/registry.py)
+- [report_definitions.py](D:/DaMoXing/ZZY/finance/app/platforms/report_definitions.py)
+- [reconciliation_service.py](D:/DaMoXing/ZZY/finance/app/application/reconciliation_service.py)
+- [reconcile.py](D:/DaMoXing/ZZY/finance/app/domain/reconcile.py)
+
+最常见的新增平台改动是：
+
+1. 新增 `app/platforms/<platform>_adapter.py`
+2. 在 `registry.py` 注册 `PlatformSpec`
+3. 在 `report_definitions.py` 补主结果表列
+4. 增加适配器测试
+5. 增加集成测试
+6. 视情况增加 Web / 导出测试
+
+## 当前支持的平台规则摘要
+
+### 聚天下
+
+固定工作表：
+
+- `订单列表`
+
+当前实际使用的字段：
 
 - `订单号`
+- `渠道订单号`
 - `产品内容`
 - `实到人数`
 - `采购金额`
 
-携程文件（工作表：`流水`）需包含：
-
-- `第三方单号`
-- `结算价金额`
-- `出发时间`
-
-美团文件（工作表：`订单详情`）需包含：
-
-- `商家订单号`
-- `销售时间`
-- `应付金额`
-- `技术服务费`
-- `技术服务费退款`
-- `商家承担优惠`
-- `结算金额`
-
 说明：
 
-- 系统会自动清洗类似 `12345.0` 的订单号格式。
-- 携程按 `出发时间` 过滤非当月记录。
-- 美团按 `销售时间` 过滤非当月记录。
+- 携程、美团使用 `订单号`
+- 抖音使用 `渠道订单号`
 
-### 平台规则摘要
+### 携程
 
-携程：
-
+- 工作表：`流水`
 - 关联规则：`聚天下[订单号] == 携程[第三方单号]`
-- 主结果表使用 6 列固定业务指标
+- 月份过滤字段：`出发时间`
+- 指标：
+  - `销售额 = 结算价金额`
+  - `结算实付 = 结算价金额`
 
-美团：
+### 美团
 
-- 关联规则：`聚天下[订单号] == 美团[订单详情].[商家订单号]`
-- 主结果表使用 8 列业务指标
-- 指标映射：
+- 工作表：`订单详情`
+- 关联规则：`聚天下[订单号] == 美团[商家订单号]`
+- 月份过滤字段：`销售时间`
+- 指标：
   - `销售额 = 应付金额`
   - `技术服务费 = 技术服务费 + 技术服务费退款`
   - `优惠券（商家承担） = 商家承担优惠`
   - `结算实付 = 结算金额`
 
-### 样例文件
+### 抖音
 
-当前仓库内可用于测试的样例文件位于 [test_data](/D:/DaMoXing/ZZY/finance/test_data)：
+- 工作表：
+  - `分账明细-正向-团购`
+  - `分账明细-退款-团购`
+- 关联规则：`聚天下[渠道订单号] == 抖音[订单编号]`
+- 月份过滤字段：`核销时间`
+- 指标：
+  - `销售额 = 订单实收金额`
+  - `技术服务费 = 增量宝 + 软件服务费`
+  - `佣金 = 平台撮合佣金 + 达人佣金 + 撮合经纪服务费 + 保险费用`
+  - `服务商佣金 = 服务商佣金`
+  - `结算实付 = 商家应得`
+
+## 推荐阅读顺序
+
+如果后续要继续扩平台，建议按下面顺序阅读：
+
+1. [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
+2. [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
+3. [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
+4. 目标平台真实样例 Excel
+5. 现有最接近的平台适配器实现
+
+## 当前样例文件
+
+当前仓库中可直接用于抖音链路验证的样例文件位于 [test_data](D:/DaMoXing/ZZY/finance/test_data)：
 
 - `jutianxia.xlsx`
-- `meituan.xlsx`
+- `douyin.xlsx`
 
-## 本地运行（Windows）
+## 本地运行
 
-运行环境：Python 3.10+
+运行环境：`Python 3.10+`
 
 ```powershell
 python -m venv .venv
@@ -171,28 +388,21 @@ http://127.0.0.1:8000
 
 ## 测试
 
-当前测试覆盖：
-
-- Domain 动态指标汇总算法
-- 携程适配器
-- 美团适配器
-- Web 路由与动态表头渲染
-- Excel 导出与差异表导出
-- 携程样例集成流程
-- 美团真实样例集成流程
+当前可稳定执行的验证命令：
 
 ```powershell
-pytest -q
+pytest tests -q --ignore=tests/integration/test_meituan_reconciliation.py
 ```
 
-## 手工验收
+说明：
 
-建议结合 [手工验收清单.md](D:/DaMoXing/ZZY/finance/手工验收清单.md) 一起使用。
+- 当前仓库已包含携程 / 美团 / 抖音的适配器与相关测试代码
+- 如果后续恢复美团真实样例文件与对应集成测试，可以再切回更完整的回归命令
 
-## 下一步建议
+## 相关文档
 
-- 增加更多平台适配器（如飞猪）并补齐对应测试
-- 对差异订单增加检索、复制与批量导出能力
-- 引入对账任务历史与结果追溯
-- 优化异常提示文案，明确到字段与工作表维度
-- 视平台复杂度继续沉淀“平台报表定义 + 平台策略”扩展机制
+- [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
+- [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
+- [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
+- [reconciliation_requirements_draft.md](D:/DaMoXing/ZZY/finance/docs/dev/reconciliation_requirements_draft.md)
+- [人工验收.md](D:/DaMoXing/ZZY/finance/docs/dev/人工验收.md)
