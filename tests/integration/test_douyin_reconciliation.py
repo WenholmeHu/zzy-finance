@@ -9,6 +9,8 @@ def test_douyin_reconciliation_matches_expected_totals_from_real_sample() -> Non
     base = Path(__file__).resolve().parents[2] / "test_data"
     jutianxia_file = base / "jutianxia.xlsx"
     douyin_file = base / "douyin.xlsx"
+    if not jutianxia_file.exists() or not douyin_file.exists():
+        pytest.skip("当前 test_data 未包含抖音真实样例文件")
 
     result = run_reconciliation(
         jutianxia_file=jutianxia_file,
@@ -45,6 +47,8 @@ def test_douyin_reconciliation_produces_differences_from_internal_and_external_o
     base = Path(__file__).resolve().parents[2] / "test_data"
     jutianxia_file = base / "jutianxia.xlsx"
     douyin_file = base / "douyin.xlsx"
+    if not jutianxia_file.exists() or not douyin_file.exists():
+        pytest.skip("当前 test_data 未包含抖音真实样例文件")
 
     result = run_reconciliation(
         jutianxia_file=jutianxia_file,
