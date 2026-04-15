@@ -27,7 +27,10 @@ def test_ctrip_adapter_filters_by_month_and_aggregates_orders() -> None:
         ]
     )
 
-    result = adapter.parse(dataframe=dataframe, reconciliation_month="2026-03")
+    result = adapter.parse_workbook(
+        {"流水": dataframe},
+        reconciliation_month="2026-03",
+    )
 
     assert result.filtered_out_of_month_row_count == 1
     assert len(result.orders) == 1

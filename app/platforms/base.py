@@ -1,6 +1,7 @@
 """平台适配器抽象定义。"""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -16,12 +17,14 @@ class PlatformAdapter(ABC):
 
     # 平台唯一标识（如 ctrip、meituan）。
     platform_name: str
-    # 平台 Excel 中需要读取的工作表名。
-    worksheet_name: str
 
     @abstractmethod
-    def parse(self, dataframe: pd.DataFrame, reconciliation_month: str) -> PlatformParseResult:
-        """把平台原始 DataFrame 解析成统一结构。
+    def parse_workbook(
+        self,
+        workbook_data: dict[str, pd.DataFrame],
+        reconciliation_month: str,
+    ) -> PlatformParseResult:
+        """把平台工作簿数据解析成统一结构。
 
         期望完成三件事：
         1) 字段校验（缺字段要抛清晰异常）；
@@ -29,3 +32,16 @@ class PlatformAdapter(ABC):
         3) 按订单号聚合后返回 PlatformParseResult。
         """
         raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class PlatformSpec:
+    """平台在应用层使用的静态元数据。"""
+
+    platform_name: str
+    platform_label: str
+    worksheet_names: tuple[str, ...]
+    internal_order_column: str
+    internal_difference_label: str
+    external_difference_label: str
+    adapter_factory: type[PlatformAdapter] | None

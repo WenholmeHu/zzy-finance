@@ -51,6 +51,8 @@ def build_reconciliation_workbook(
 def build_difference_workbook(
     reconciliation_month: str,
     platform_label: str,
+    internal_difference_label: str,
+    external_difference_label: str,
     internal_only_order_nos: list[str],
     external_only_order_nos: list[str],
 ) -> bytes:
@@ -62,7 +64,7 @@ def build_difference_workbook(
         worksheet=internal_only_sheet,
         reconciliation_month=reconciliation_month,
         platform_label=platform_label,
-        number_header="订单号",
+        number_header=internal_difference_label,
         order_nos=internal_only_order_nos,
     )
 
@@ -71,7 +73,7 @@ def build_difference_workbook(
         worksheet=external_only_sheet,
         reconciliation_month=reconciliation_month,
         platform_label=platform_label,
-        number_header="第三方单号",
+        number_header=external_difference_label,
         order_nos=external_only_order_nos,
     )
 

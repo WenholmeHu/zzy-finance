@@ -9,11 +9,15 @@ from pathlib import Path
 import pandas as pd
 
 
-def read_excel_sheet(file_path: Path, sheet_name: str) -> pd.DataFrame:
+def read_excel_sheet(
+    file_path: Path,
+    sheet_name: str,
+    **read_excel_kwargs,
+) -> pd.DataFrame:
     """读取指定工作表并返回 DataFrame。
 
     参数:
     - file_path: Excel 文件路径；
     - sheet_name: 要读取的工作表名（必须和业务约定一致）。
     """
-    return pd.read_excel(file_path, sheet_name=sheet_name)
+    return pd.read_excel(file_path, sheet_name=sheet_name, **read_excel_kwargs)

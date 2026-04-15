@@ -20,8 +20,17 @@ class CtripAdapter(PlatformAdapter):
     platform_name = "ctrip"
     worksheet_name = "流水"
 
-    def parse(self, dataframe: pd.DataFrame, reconciliation_month: str) -> PlatformParseResult:
+    def parse_workbook(
+        self,
+        workbook_data: dict[str, pd.DataFrame],
+        reconciliation_month: str,
+    ) -> PlatformParseResult:
         """解析携程数据并按对账月份过滤。"""
+        try:
+            dataframe = workbook_data[self.worksheet_name]
+        except KeyError as exc:
+            raise ValueError(f"携程文件缺少工作表: {self.worksheet_name}") from exc
+
         # 这里定义的是“携程原始字段名”，改模板时优先修改此处。
         third_order_column = "第三方单号"
         settlement_column = "结算价金额"

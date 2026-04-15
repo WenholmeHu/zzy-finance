@@ -158,3 +158,29 @@ def test_export_differences_route_returns_excel_file() -> None:
     assert external_only_sheet["B4"].value == "第三方单号"
     assert external_only_sheet["A5"].value == 1
     assert external_only_sheet["B5"].value == "CTRIP-404"
+
+
+def test_export_differences_route_uses_douyin_difference_headers() -> None:
+    client = TestClient(app)
+    payload = json.dumps(
+        {
+            "reconciliation_month": "2026-03",
+            "platform_name": "douyin",
+            "internal_only_order_nos": ["DY-001"],
+            "external_only_order_nos": ["DY-404"],
+        },
+        ensure_ascii=False,
+    )
+
+    response = client.post("/export-differences", data={"payload": payload})
+
+    assert response.status_code == 200
+
+    workbook = load_workbook(BytesIO(response.content))
+    internal_only_sheet = workbook["聚天下有、第三方当月无"]
+    external_only_sheet = workbook["第三方有、聚天下当月无"]
+
+    assert internal_only_sheet["B4"].value == "渠道订单号"
+    assert internal_only_sheet["B5"].value == "DY-001"
+    assert external_only_sheet["B4"].value == "订单编号"
+    assert external_only_sheet["B5"].value == "DY-404"

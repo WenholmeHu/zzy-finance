@@ -7,9 +7,9 @@
 """
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from dataclasses import asdict
 
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile
 from fastapi.templating import Jinja2Templates
@@ -19,6 +19,7 @@ from app.infrastructure.excel_writer import (
     build_difference_workbook,
     build_reconciliation_workbook,
 )
+from app.platforms.registry import get_platform_spec
 from app.platforms.report_definitions import (
     get_platform_label,
     get_platform_report_definition,
@@ -34,10 +35,13 @@ def _base_context() -> dict:
     """模板渲染的默认上下文，保证初次加载和异常场景字段完整。"""
     # 统一提供全部模板字段，可避免模板中出现未定义变量异常。
     # 新增页面字段时，建议先在这里补默认值。
+    ctrip_spec = get_platform_spec("ctrip")
     return {
         "page_title": "本地对账工具",
         "selected_platform": "ctrip",
         "selected_month": "",
+        "internal_difference_label": ctrip_spec.internal_difference_label,
+        "external_difference_label": ctrip_spec.external_difference_label,
         "platform_options": [
             {
                 "platform_name": definition.platform_name,
@@ -114,6 +118,9 @@ async def reconcile(
             "platform_label": _platform_label(platform),
             "reconciliation_month": reconciliation_month,
         }
+        platform_spec = get_platform_spec(platform)
+        context["internal_difference_label"] = platform_spec.internal_difference_label
+        context["external_difference_label"] = platform_spec.external_difference_label
         report_definition = get_platform_report_definition(platform)
         context["report_columns"] = [asdict(column) for column in report_definition.columns]
         context["result_rows"] = [asdict(row) for row in result.rows]
@@ -135,6 +142,8 @@ async def reconcile(
             {
                 "reconciliation_month": reconciliation_month,
                 "platform_name": platform,
+                "internal_difference_label": context["internal_difference_label"],
+                "external_difference_label": context["external_difference_label"],
                 "internal_only_order_nos": context["internal_only_order_nos"],
                 "external_only_order_nos": context["external_only_order_nos"],
             },
@@ -181,9 +190,14 @@ async def export_differences_excel(payload: str = Form(...)) -> Response:
     """根据前端提交的 payload 生成并下载差异订单 Excel。"""
     parsed_payload = json.loads(payload)
     platform_name = parsed_payload["platform_name"]
+    platform_spec = get_platform_spec(platform_name)
     workbook_bytes = build_difference_workbook(
         reconciliation_month=parsed_payload["reconciliation_month"],
         platform_label=_platform_label(platform_name),
+        internal_difference_label=parsed_payload.get("internal_difference_label")
+        or platform_spec.internal_difference_label,
+        external_difference_label=parsed_payload.get("external_difference_label")
+        or platform_spec.external_difference_label,
         internal_only_order_nos=parsed_payload.get("internal_only_order_nos", []),
         external_only_order_nos=parsed_payload.get("external_only_order_nos", []),
     )
