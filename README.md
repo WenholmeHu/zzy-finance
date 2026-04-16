@@ -381,13 +381,15 @@
 
 ## 推荐阅读顺序
 
-如果后续要继续扩平台，建议按下面顺序阅读：
+如果后续要继续扩平台或接手维护，建议按下面顺序阅读：
 
-1. [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
-2. [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
-3. [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
-4. 目标平台真实样例 Excel
-5. 现有最接近的平台适配器实现
+1. [交接总览.md](D:/DaMoXing/ZZY/finance/docs/handover/00-交接总览.md)
+2. [样例数据与测试策略.md](D:/DaMoXing/ZZY/finance/docs/handover/03-样例数据与测试策略.md)
+3. [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
+4. [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
+5. [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
+6. 目标平台真实样例 Excel
+7. 现有最接近的平台适配器实现
 
 ## 当前样例文件
 
@@ -433,8 +435,14 @@ pytest tests -q
 
 ## 相关文档
 
+- [交接总览.md](D:/DaMoXing/ZZY/finance/docs/handover/00-交接总览.md)
+- [运行与交付.md](D:/DaMoXing/ZZY/finance/docs/handover/01-运行与交付.md)
+- [维护与排障.md](D:/DaMoXing/ZZY/finance/docs/handover/02-维护与排障.md)
+- [样例数据与测试策略.md](D:/DaMoXing/ZZY/finance/docs/handover/03-样例数据与测试策略.md)
+- [平台矩阵.md](D:/DaMoXing/ZZY/finance/docs/handover/04-平台矩阵.md)
+- [已知问题与后续建议.md](D:/DaMoXing/ZZY/finance/docs/handover/05-已知问题与后续建议.md)
+- [人工验收清单.md](D:/DaMoXing/ZZY/finance/docs/handover/06-人工验收清单.md)
 - [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
 - [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
 - [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
 - [历史需求草稿：2026-04-10-reconciliation-requirements-draft.md](D:/DaMoXing/ZZY/finance/docs/history/2026-04-10-reconciliation-requirements-draft.md)
-- [人工验收.md](D:/DaMoXing/ZZY/finance/docs/dev/人工验收.md)
