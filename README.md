@@ -436,5 +436,5 @@ pytest tests -q
 - [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
 - [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
 - [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
-- [reconciliation_requirements_draft.md](D:/DaMoXing/ZZY/finance/docs/dev/reconciliation_requirements_draft.md)
+- [历史需求草稿：2026-04-10-reconciliation-requirements-draft.md](D:/DaMoXing/ZZY/finance/docs/history/2026-04-10-reconciliation-requirements-draft.md)
 - [人工验收.md](D:/DaMoXing/ZZY/finance/docs/dev/人工验收.md)

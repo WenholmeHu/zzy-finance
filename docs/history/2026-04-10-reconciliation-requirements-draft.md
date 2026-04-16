@@ -1,5 +1,13 @@
 # Excel对账需求说明
 
+> 历史文档说明：本文档是 `2026-04-10` 围绕“聚天下 + 携程”链路整理的早期专项需求草稿，主要用于追溯最初的需求背景与业务口径，不作为当前系统总体设计、当前样例数据口径或后续新增平台接入的主入口。
+>
+> 当前系统请优先阅读：
+> - [README.md](D:/DaMoXing/ZZY/finance/README.md)
+> - [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
+> - [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
+> - [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
+
 文档状态：已确认需求 v1.2  
 整理日期：2026-04-10  
 当前阶段：需求梳理，不进入实现
