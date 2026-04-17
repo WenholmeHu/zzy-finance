@@ -119,7 +119,7 @@
 
 ### 平台元数据边界
 
-平台静态元数据集中在 [registry.py](D:/DaMoXing/ZZY/finance/app/platforms/registry.py)。
+平台静态元数据集中在 [registry.py](finance/app/platforms/registry.py)。
 
 这里负责：
 
@@ -154,7 +154,7 @@
 当前每个平台的职责划分如下：
 
 - 携程
-  - 文件：[ctrip_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/ctrip_adapter.py)
+  - 文件：[ctrip_adapter.py](finance/app/platforms/ctrip_adapter.py)
   - 负责：
     - 读取 `流水`
     - 使用 `出发时间` 过滤
@@ -164,7 +164,7 @@
       - `settlement_paid`
 
 - 美团
-  - 文件：[meituan_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/meituan_adapter.py)
+  - 文件：[meituan_adapter.py](finance/app/platforms/meituan_adapter.py)
   - 负责：
     - 读取 `订单详情`
     - 使用 `销售时间` 过滤
@@ -176,7 +176,7 @@
       - `settlement_paid`
 
 - 抖音
-  - 文件：[douyin_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/douyin_adapter.py)
+  - 文件：[douyin_adapter.py](finance/app/platforms/douyin_adapter.py)
   - 负责：
     - 同时读取 `分账明细-正向-团购`、`分账明细-退款-团购`
     - 使用 `核销时间` 过滤
@@ -190,7 +190,7 @@
       - `settlement_paid`
 
 - 同程
-  - 文件：[tongcheng_adapter.py](D:/DaMoXing/ZZY/finance/app/platforms/tongcheng_adapter.py)
+  - 文件：[tongcheng_adapter.py](finance/app/platforms/tongcheng_adapter.py)
   - 负责：
     - 读取平台文件中的唯一工作表（工作表名动态）
     - 使用 `旅游日期` 过滤
@@ -211,7 +211,7 @@
 
 ### 主结果表边界
 
-主结果表的列定义集中在 [report_definitions.py](D:/DaMoXing/ZZY/finance/app/platforms/report_definitions.py)。
+主结果表的列定义集中在 [report_definitions.py](finance/app/platforms/report_definitions.py)。
 
 这里负责：
 
@@ -238,7 +238,7 @@
 
 ### 应用编排边界
 
-[reconciliation_service.py](D:/DaMoXing/ZZY/finance/app/application/reconciliation_service.py) 负责串联所有平台共享流程：
+[reconciliation_service.py](finance/app/application/reconciliation_service.py) 负责串联所有平台共享流程：
 
 1. 根据 `PlatformSpec` 选择聚天下匹配字段
 2. 读取聚天下 `订单列表`
@@ -257,7 +257,7 @@
 
 ### 领域规则边界
 
-[reconcile.py](D:/DaMoXing/ZZY/finance/app/domain/reconcile.py) 是全平台共享的统一业务算法。
+[reconcile.py](finance/app/domain/reconcile.py) 是全平台共享的统一业务算法。
 
 这里负责：
 
@@ -300,11 +300,11 @@
 
 后续新增平台，优先看这几份代码：
 
-- [base.py](D:/DaMoXing/ZZY/finance/app/platforms/base.py)
-- [registry.py](D:/DaMoXing/ZZY/finance/app/platforms/registry.py)
-- [report_definitions.py](D:/DaMoXing/ZZY/finance/app/platforms/report_definitions.py)
-- [reconciliation_service.py](D:/DaMoXing/ZZY/finance/app/application/reconciliation_service.py)
-- [reconcile.py](D:/DaMoXing/ZZY/finance/app/domain/reconcile.py)
+- [base.py](finance/app/platforms/base.py)
+- [registry.py](finance/app/platforms/registry.py)
+- [report_definitions.py](finance/app/platforms/report_definitions.py)
+- [reconciliation_service.py](finance/app/application/reconciliation_service.py)
+- [reconcile.py](finance/app/domain/reconcile.py)
 
 最常见的新增平台改动是：
 
@@ -330,17 +330,24 @@
 - `产品内容`
 - `实到人数`
 - `采购金额`
+- `零售金额`
 
 说明：
 
 - 携程、美团使用 `订单号`
 - 抖音使用 `渠道订单号`
+- `零售金额 = 0` 的聚天下订单会在共享读取阶段被整体过滤，不参与匹配、汇总和差异订单
 
 ### 携程
 
 - 工作表：`流水`
 - 关联规则：`聚天下[订单号] == 携程[第三方单号]`
 - 月份过滤字段：`出发时间`
+- 聚天下额外过滤：
+  - `订单列表.分销商` 等于
+    - `携程http://vbooking.ctrip.com/，VBK账号:vbk95089 密码:2117548aaa@ 携程登录账号:13388601591密码:2117548aaa(子订单)`
+    - `杭州游趣旅游携程`
+  - 命中后该内部订单整体不参与匹配、汇总和差异订单
 - 指标：
   - `销售额 = 结算价金额`
   - `结算实付 = 结算价金额`
@@ -383,17 +390,17 @@
 
 如果后续要继续扩平台或接手维护，建议按下面顺序阅读：
 
-1. [交接总览.md](D:/DaMoXing/ZZY/finance/docs/handover/00-交接总览.md)
-2. [样例数据与测试策略.md](D:/DaMoXing/ZZY/finance/docs/handover/03-样例数据与测试策略.md)
-3. [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
-4. [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
-5. [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
+1. [交接总览.md](finance/docs/handover/00-交接总览.md)
+2. [样例数据与测试策略.md](finance/docs/handover/03-样例数据与测试策略.md)
+3. [平台拓展开发说明.md](finance/docs/dev/平台拓展开发说明.md)
+4. [平台接入检查清单.md](finance/docs/dev/平台接入检查清单.md)
+5. [项目设计文档.md](finance/docs/dev/项目设计文档.md)
 6. 目标平台真实样例 Excel
 7. 现有最接近的平台适配器实现
 
 ## 当前样例文件
 
-当前仓库中默认提供的真实样例文件位于 [test_data](D:/DaMoXing/ZZY/finance/test_data)：
+当前仓库中默认提供的真实样例文件位于 [test_data](finance/test_data)：
 
 - `jutianxia_tc.xlsx`
 - `tongcheng.xlsx`
@@ -408,10 +415,12 @@
 运行环境：`Python 3.10+`
 
 ```powershell
+虚拟环境：
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+
+安装依赖：pip install -r requirements.txt
+启动：uvicorn app.main:app --reload
 ```
 
 浏览器访问：
@@ -435,14 +444,14 @@ pytest tests -q
 
 ## 相关文档
 
-- [交接总览.md](D:/DaMoXing/ZZY/finance/docs/handover/00-交接总览.md)
-- [运行与交付.md](D:/DaMoXing/ZZY/finance/docs/handover/01-运行与交付.md)
-- [维护与排障.md](D:/DaMoXing/ZZY/finance/docs/handover/02-维护与排障.md)
-- [样例数据与测试策略.md](D:/DaMoXing/ZZY/finance/docs/handover/03-样例数据与测试策略.md)
-- [平台矩阵.md](D:/DaMoXing/ZZY/finance/docs/handover/04-平台矩阵.md)
-- [已知问题与后续建议.md](D:/DaMoXing/ZZY/finance/docs/handover/05-已知问题与后续建议.md)
-- [人工验收清单.md](D:/DaMoXing/ZZY/finance/docs/handover/06-人工验收清单.md)
-- [平台拓展开发说明.md](D:/DaMoXing/ZZY/finance/docs/dev/平台拓展开发说明.md)
-- [平台接入检查清单.md](D:/DaMoXing/ZZY/finance/docs/dev/平台接入检查清单.md)
-- [项目设计文档.md](D:/DaMoXing/ZZY/finance/docs/dev/项目设计文档.md)
-- [历史需求草稿：2026-04-10-reconciliation-requirements-draft.md](D:/DaMoXing/ZZY/finance/docs/history/2026-04-10-reconciliation-requirements-draft.md)
+- [交接总览.md]finance/docs/handover/00-交接总览.md)
+- [运行与交付.md](finance/docs/handover/01-运行与交付.md)
+- [维护与排障.md](finance/docs/handover/02-维护与排障.md)
+- [样例数据与测试策略.md](finance/docs/handover/03-样例数据与测试策略.md)
+- [平台矩阵.md](finance/docs/handover/04-平台矩阵.md)
+- [已知问题与后续建议.md](finance/docs/handover/05-已知问题与后续建议.md)
+- [人工验收清单.md](finance/docs/handover/06-人工验收清单.md)
+- [平台拓展开发说明.md](finance/docs/dev/平台拓展开发说明.md)
+- [平台接入检查清单.md](finance/docs/dev/平台接入检查清单.md)
+- [项目设计文档.md](finance/docs/dev/项目设计文档.md)
+- [历史需求草稿：2026-04-10-reconciliation-requirements-draft.md](finance/docs/history/2026-04-10-reconciliation-requirements-draft.md)

@@ -18,10 +18,10 @@ def test_tongcheng_reconciliation_matches_expected_totals_from_real_sample() -> 
     )
 
     assert result.matched_order_count == 737
-    assert result.unmatched_order_count == 8748
+    assert result.unmatched_order_count == 8743
     assert result.product_count == 23
     assert result.filtered_out_of_month_row_count == 0
-    assert result.internal_only_count == 8748
+    assert result.internal_only_count == 8743
     assert result.external_only_count == 0
     assert result.external_only_order_nos == []
 

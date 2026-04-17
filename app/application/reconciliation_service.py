@@ -18,6 +18,13 @@ ORDER_LIST_SHEET = "订单列表"
 PRODUCT_COLUMN = "产品内容"
 ACTUAL_PEOPLE_COLUMN = "实到人数"
 PURCHASE_AMOUNT_COLUMN = "采购金额"
+RETAIL_AMOUNT_COLUMN = "零售金额"
+DISTRIBUTOR_COLUMN = "分销商"
+CTRIP_EXCLUDED_DISTRIBUTORS = {
+    "携程http://vbooking.ctrip.com/，VBK账号:vbk95089 密码:2117548aaa@ "
+    "携程登录账号:13388601591密码:2117548aaa(子订单)",
+    "杭州游趣旅游携程",
+}
 INTEGER_TEXT_WITH_DECIMAL_SUFFIX = re.compile(r"^\d+\.0+$")
 
 
@@ -41,6 +48,7 @@ def run_reconciliation(
     internal_orders = _load_internal_orders(
         jutianxia_file,
         order_column=spec.internal_order_column,
+        platform_name=platform_name,
     )
     # Step 2: 根据平台名获取适配器（隔离平台差异）。
     adapter = get_platform_adapter(platform_name)
@@ -69,7 +77,11 @@ def run_reconciliation(
     )
 
 
-def _load_internal_orders(file_path: Path, order_column: str) -> list[InternalOrder]:
+def _load_internal_orders(
+    file_path: Path,
+    order_column: str,
+    platform_name: str | None = None,
+) -> list[InternalOrder]:
     """把聚天下 Excel 转成领域模型 InternalOrder 列表。
 
     约束：
@@ -85,6 +97,16 @@ def _load_internal_orders(file_path: Path, order_column: str) -> list[InternalOr
 
     # 订单号为空的记录无法参与匹配，先过滤掉。
     working = dataframe[dataframe[order_column].notna()].copy()
+
+    # 业务约束：零售金额为 0 的聚天下订单整体不参与对账。
+    if RETAIL_AMOUNT_COLUMN in working.columns:
+        retail_amount = pd.to_numeric(working[RETAIL_AMOUNT_COLUMN], errors="coerce")
+        working = working[~retail_amount.eq(0)].copy()
+
+    # 携程专属约束：特定分销商来源的聚天下订单整体不参与对账。
+    if platform_name == "ctrip" and DISTRIBUTOR_COLUMN in working.columns:
+        distributor = working[DISTRIBUTOR_COLUMN].fillna("").astype(str).str.strip()
+        working = working[~distributor.isin(CTRIP_EXCLUDED_DISTRIBUTORS)].copy()
 
     # 读取阶段负责保真，这里只做轻量清洗，并兼容旧数据里常见的 12345.0 文本格式。
     working[order_column] = working[order_column].astype(str).map(_normalize_order_no)

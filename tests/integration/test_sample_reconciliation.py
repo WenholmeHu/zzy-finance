@@ -9,6 +9,12 @@ from app.models.reconciliation import PlatformParseResult
 from app.platforms.base import PlatformSpec
 from app.platforms.registry import get_platform_spec
 
+CTRIP_BLOCKED_DISTRIBUTORS = {
+    "携程http://vbooking.ctrip.com/，VBK账号:vbk95089 密码:2117548aaa@ "
+    "携程登录账号:13388601591密码:2117548aaa(子订单)",
+    "杭州游趣旅游携程",
+}
+
 
 def _write_excel(path: Path, sheet_name: str, rows: list[dict]) -> Path:
     dataframe = pd.DataFrame(rows)
@@ -92,6 +98,117 @@ def test_ctrip_reconciliation_matches_expected_totals_from_workbooks(
     assert row.metrics["settlement_paid"] == pytest.approx(150.0)
     assert row.metrics["purchase_amount"] == pytest.approx(120.0)
     assert row.metrics["profit"] == pytest.approx(30.0)
+
+
+def test_run_reconciliation_excludes_zero_retail_internal_orders_from_differences(
+    tmp_path: Path,
+) -> None:
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "A-001",
+                "产品内容": "产品A",
+                "实到人数": 2,
+                "采购金额": 80.0,
+                "零售金额": 100.0,
+            },
+            {
+                "订单号": "ZERO-001",
+                "产品内容": "产品零",
+                "实到人数": 1,
+                "采购金额": 20.0,
+                "零售金额": 0.0,
+            },
+        ],
+    )
+    ctrip_file = _write_excel(
+        tmp_path / "ctrip.xlsx",
+        "流水",
+        [
+            {
+                "第三方单号": "A-001",
+                "结算价金额": 100.0,
+                "出发时间": "2026-03-02",
+            }
+        ],
+    )
+
+    result = run_reconciliation(
+        jutianxia_file=jutianxia_file,
+        platform_file=ctrip_file,
+        reconciliation_month="2026-03",
+        platform_name="ctrip",
+    )
+
+    assert result.matched_order_count == 1
+    assert result.unmatched_order_count == 0
+    assert result.internal_only_order_nos == []
+    assert result.external_only_order_nos == []
+    assert [row.product_name for row in result.rows] == ["产品A"]
+
+
+def test_run_reconciliation_excludes_blocked_ctrip_distributors_from_internal_orders(
+    tmp_path: Path,
+) -> None:
+    blocked_child_order_distributor, blocked_hangzhou_distributor = sorted(
+        CTRIP_BLOCKED_DISTRIBUTORS
+    )
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "A-001",
+                "产品内容": "产品A",
+                "实到人数": 2,
+                "采购金额": 80.0,
+                "零售金额": 100.0,
+                "分销商": "普通分销商",
+            },
+            {
+                "订单号": "DROP-001",
+                "产品内容": "产品B",
+                "实到人数": 1,
+                "采购金额": 20.0,
+                "零售金额": 20.0,
+                "分销商": blocked_child_order_distributor,
+            },
+            {
+                "订单号": "DROP-002",
+                "产品内容": "产品C",
+                "实到人数": 1,
+                "采购金额": 30.0,
+                "零售金额": 30.0,
+                "分销商": blocked_hangzhou_distributor,
+            },
+        ],
+    )
+    ctrip_file = _write_excel(
+        tmp_path / "ctrip.xlsx",
+        "流水",
+        [
+            {
+                "第三方单号": "A-001",
+                "结算价金额": 100.0,
+                "出发时间": "2026-03-02",
+            }
+        ],
+    )
+
+    result = run_reconciliation(
+        jutianxia_file=jutianxia_file,
+        platform_file=ctrip_file,
+        reconciliation_month="2026-03",
+        platform_name="ctrip",
+    )
+
+    assert result.matched_order_count == 1
+    assert result.unmatched_order_count == 0
+    assert result.internal_only_order_nos == []
+    assert result.external_only_order_nos == []
+    assert [row.product_name for row in result.rows] == ["产品A"]
 
 
 def test_platform_specs_expose_worksheet_lists_and_match_columns() -> None:
@@ -471,6 +588,96 @@ def test_load_internal_orders_uses_the_specified_match_column(tmp_path: Path) ->
     orders = _load_internal_orders(jutianxia_file, order_column="渠道订单号")
 
     assert [order.order_no for order in orders] == ["DY-001", "DY-002"]
+
+
+def test_load_internal_orders_excludes_zero_retail_amount_rows(tmp_path: Path) -> None:
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "KEEP-001",
+                "产品内容": "产品A",
+                "实到人数": 2,
+                "采购金额": 80.0,
+                "零售金额": 100.0,
+            },
+            {
+                "订单号": "DROP-001",
+                "产品内容": "产品B",
+                "实到人数": 1,
+                "采购金额": 40.0,
+                "零售金额": 0.0,
+            },
+            {
+                "订单号": "DROP-002",
+                "产品内容": "产品C",
+                "实到人数": 1,
+                "采购金额": 20.0,
+                "零售金额": "0.00",
+            },
+        ],
+    )
+
+    orders = _load_internal_orders(jutianxia_file, order_column="订单号")
+
+    assert [order.order_no for order in orders] == ["KEEP-001"]
+
+
+def test_load_internal_orders_excludes_blocked_ctrip_distributors_only_for_ctrip(
+    tmp_path: Path,
+) -> None:
+    blocked_child_order_distributor, blocked_hangzhou_distributor = sorted(
+        CTRIP_BLOCKED_DISTRIBUTORS
+    )
+    jutianxia_file = _write_excel(
+        tmp_path / "jutianxia.xlsx",
+        "订单列表",
+        [
+            {
+                "订单号": "KEEP-001",
+                "产品内容": "产品A",
+                "实到人数": 2,
+                "采购金额": 80.0,
+                "零售金额": 100.0,
+                "分销商": "普通分销商",
+            },
+            {
+                "订单号": "DROP-001",
+                "产品内容": "产品B",
+                "实到人数": 1,
+                "采购金额": 40.0,
+                "零售金额": 40.0,
+                "分销商": blocked_child_order_distributor,
+            },
+            {
+                "订单号": "DROP-002",
+                "产品内容": "产品C",
+                "实到人数": 1,
+                "采购金额": 20.0,
+                "零售金额": 20.0,
+                "分销商": blocked_hangzhou_distributor,
+            },
+        ],
+    )
+
+    ctrip_orders = _load_internal_orders(
+        jutianxia_file,
+        order_column="订单号",
+        platform_name="ctrip",
+    )
+    meituan_orders = _load_internal_orders(
+        jutianxia_file,
+        order_column="订单号",
+        platform_name="meituan",
+    )
+
+    assert [order.order_no for order in ctrip_orders] == ["KEEP-001"]
+    assert [order.order_no for order in meituan_orders] == [
+        "KEEP-001",
+        "DROP-001",
+        "DROP-002",
+    ]
 
 
 def test_load_internal_orders_preserves_large_order_numbers_as_strings(
